@@ -1,0 +1,53 @@
+
+
+SELECT 
+    [sJOB].[job_id] AS [JobID]
+    , [sJOB].[name] AS [JobName]
+    , CASE [sJOBH].[run_status]
+        WHEN 0 THEN 'Failed'
+        WHEN 1 THEN 'Succeeded'
+        WHEN 2 THEN 'Retry'
+        WHEN 3 THEN 'Canceled'
+        WHEN 4 THEN 'Running' -- In Progress
+      END AS [LastRunStatus]
+    , STUFF(
+            STUFF(RIGHT('000000' + CAST([sJOBH].[run_duration] AS VARCHAR(6)),  6)
+                , 3, 0, ':')
+            , 6, 0, ':') 
+        AS [LastRunDuration (HH:MM:SS)]
+    , [sJOBH].[message] AS [LastRunStatusMessage],
+	[sJOBH].run_date,
+	[sJOBH].run_time
+FROM 
+    [msdb].[dbo].[sysjobs] AS [sJOB]
+LEFT JOIN (
+                SELECT 
+                    [job_id]
+                    , [run_date]
+                    , [run_time]
+                    , [run_status]
+                    , [run_duration]
+                    , [message]
+                    , ROW_NUMBER() OVER (
+                                            PARTITION BY [job_id] 
+                                            ORDER BY [run_date] DESC, [run_time] DESC
+                      ) AS RowNumber
+                FROM [msdb].[dbo].[sysjobhistory]
+                WHERE [step_id] = 0
+				           ) AS [sJOBH]
+        ON [sJOB].[job_id] = [sJOBH].[job_id]
+        AND [sJOBH].[RowNumber] = 1
+		where [sJOB].[job_id] in (
+'43773152-F8FC-4BA5-A486-F1852F7F4841',
+'C2522B63-8447-4A67-BAE3-F2E409F48567',
+'A1090369-7475-404B-8BBA-EABD80F05C13',
+'2A5DCAD3-B6FD-4C7D-B04A-97DD0DA54846',
+'90266271-7A5F-430A-AF15-8FBCC0352D17',
+'6B15B7DE-23E3-4E5B-95F8-7EFFC3508521',
+'4720E677-1A10-4C68-A291-4046281318EF',
+'AFAC9DF9-DE33-4B03-8C3D-72650EB56652',
+'6D151218-5779-4654-AFAE-9B166D3BAE64',
+'D5DE1479-E7B0-415D-8771-73B6E01EA5F6',
+'E5352B4B-209F-46B7-ABB6-B522C61CF696',
+'28BF8FB9-8ABB-47A7-99C7-28C8C66E8E14')
+ORDER BY [JobName]

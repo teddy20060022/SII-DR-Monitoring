@@ -9,14 +9,14 @@ import os
 import fnmatch
 from datetime import date 
 import re
-os.chdir("C:\\Program Files\\Oracle\\instantclient_19_3")
+os.chdir("C:\\instantclient_19_3")
 
 myDate = date.today()
 tanggal='{:%Y%m%d}'.format(myDate)
 #print(tanggal)
 
 file_name = '{}_expdp_pdbaca02.log'.format(tanggal)
-path_name = 'D:\\Project\\BSI\\BACKUP\\'
+path_name = '' #rubah path sesuai lokasi server 'D:\\Project\\BSI\\BACKUP\\'
 #print(path_name)
 
 #Simple Filename Pattern Matching Using fnmatch
@@ -129,11 +129,12 @@ print(value6.format(total_size))
 
 #insert into table oracle
 try: 
-    con = cx_Oracle.connect('USER_DEMO/oracle@192.168.0.101/DB11G')    
+    #con = cx_Oracle.connect('USER_DEMO/oracle@192.168.0.101/DB11G')
+    con = cx_Oracle.connect('monitoring/monitoringd@172.17.30.77/XE')
     
     # Now execute the sqlquery 
     cur = con.cursor()
-    sql_command = 'INSERT INTO USER_DEMO.ACA_TABLE VALUES (\'4\',\'{}\',\'{}\',\'{}\',\'{}\',\'{}\',\'{}\',\'Null\')'.format(start_time,status,end_time,elapsed_time,file_name,total_size)
+    sql_command = 'INSERT INTO MONITORING.ACA_TABLE VALUES (\'4\',\'{}\',\'{}\',\'{}\',\'{}\',\'{}\',\'{}\',\'Null\')'.format(start_time,status,end_time,elapsed_time,file_name,total_size)
     #cur.execute('INSERT INTO USER_DEMO.ACA_TABLE(acaID, start_time, status, end_time, elapsed, file_name, file_size, Message ) VALUES ("1","Mon Aug 5 00:22:04 2019","successfully completed","","01:20:42","pdbaca02_20190805.dmp","50.97 GB","","")'
     cur.execute(sql_command)          
     #cur.execute("select table_name, owner from dba_tables where owner='USER_DEMO'")
@@ -145,6 +146,16 @@ try:
     #myresult = cur.fetchall()
     #for x in myresult:
     #    print(x)
+    
+    sql_query = 'select * from MONITORING.ACA_TABLE'
+    cur.execute(sql_query)
+    
+    for row in cur:
+        print(row)
+        
+    #and write it to the file
+    with open('{}test1.log'.format(path_name), 'w') as file:
+        file.write(str(row))
   
 except cx_Oracle.DatabaseError as e: 
     print("There is a problem with Oracle", e) 

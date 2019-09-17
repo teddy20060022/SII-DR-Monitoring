@@ -1,9 +1,0 @@
-        
-run_status
-==========
-WHEN 0 THEN 'Failed'
-WHEN 1 THEN 'Succeeded'
-WHEN 2 THEN 'Retry'
-WHEN 3 THEN 'Canceled'
-WHEN 4 THEN 'Running' -- In Progress
-

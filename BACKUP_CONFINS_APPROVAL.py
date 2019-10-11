@@ -1,29 +1,32 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Aug 15 14:10:24 2019
-
 @author: Muhammad Tedi Sopyan
 """
 
 ######confins#####
+#from datetime import datetime,timedelta
+import os
+import fnmatch
 import pyodbc 
+import re
 try:
-    """server ='172.16.2.200'
+    server ='192.168.138.133'
     db ='DRMON'
     tcon ='yes'
-    usern ='sa'
-    pwd ='Pa55w.rd'
-    """
-    cnxn = pyodbc.connect('DSN=TEST;UID=sa;PWD=Pa55w.rd')
-    #cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+db+';UID='+usern+';PWD='+pwd+'')
-    #sql = 'SELECT @@version'
+    usern ='drmonuser'
+    pwd ='P@ssw0rd234'
+    #cnxn = pyodbc.connect('DSN=TEST;UID=sa;PWD=Pa55w.rd')
+    cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+db+';UID='+usern+';PWD='+pwd+'')
+    #sql = 'select A.[DRSystem] ,A.[ProcessCode] ,[Scheme] ,A.[LogDate] ,[StartTime] ,[Status] ,[EndTime] ,[ElapsedTime] ,[FileName] from'
     cursor = cnxn.cursor()
     #cursor.execute(sql)
-    sql = " select A.[DRSystem] ,A.[ProcessCode] ,[Scheme] ,A.[LogDate] ,[StartTime] ,[Status] ,[EndTime] ,[ElapsedTime] ,[FileName] ,[FileSize] ,[Message] \
+    
+    sql = " select A.[DRSystem] ,A.[ProcessCode] ,[Scheme] ,A.[LogDate] ,[StartTime] ,[Status] ,[EndTime] ,[ElapsedTime],[Message] \
          		from (SELECT 'CON' AS [DRSystem] \
                 	, 'B' AS [ProcessCode] \
                 	, ROW_NUMBER() OVER (PARTITION BY [sJOB].[job_id] ORDER BY [run_date], [run_time] ) AS [Seq] \
-                	, SUBSTRING(name,16,100) [Scheme] \
+                	, (select [MJob].[Scheme] from [Master_Job_ID] AS [MJob] WHERE [MJob].job_id = [sJOB].[job_id]) [Scheme] \
         , (select \
         CASE when convert(time,getdate()) > convert(time,'08:00:00') then convert(datetime,convert(date,getdate())) \
         else \
@@ -49,8 +52,6 @@ try:
                         , 3, 0, ':') \
                     , 6, 0, ':')\
                 AS [ElapsedTime] \
-        	, NULL [FileName] \
-        	, 999 [FileSize] \
             , [sJOBH].[message] AS [Message] \
         FROM [msdb].[dbo].[sysjobs] AS [sJOB] \
         LEFT JOIN ( SELECT [job_id] , [run_date] , [run_time] , [run_status] , [run_duration] , [message] \
@@ -60,9 +61,9 @@ try:
         				           ) AS [sJOBH] \
                 ON [sJOB].[job_id] = [sJOBH].[job_id] \
         WHERE [sJOB].job_id in ( \
-        select [MJob].job_id from [Master_Job_ID] AS [MJob]\
-        WHERE [MJob].[DRSystem] = 'CON' AND [MJob].ProcessCode = 'R' \
-        	AND [MJob].Scheme = 'APPROV' ) \
+        select [MJob].job_id from DRMON.dbo.[Master_Job_ID] AS [MJob]\
+        WHERE [MJob].[DRSystem] = 'CON' AND [MJob].ProcessCode = 'B' \
+        	AND [MJob].Scheme = 'APPROVAL' ) \
         	AND convert(datetime,convert(varchar, convert(datetime, CONVERT(varchar,run_date)), 111) \
         + ' ' + substring(RIGHT('000000' + CONVERT(varchar,run_time),6), 1, 2) \
         + ':' + substring(RIGHT('000000' + CONVERT(varchar,run_time),6), 3, 2) \
@@ -84,22 +85,40 @@ try:
         usern ='qlik'
         pwd ='P@ssw0rd23'
         monitor = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+db+';UID='+usern+';PWD='+pwd+'')
-        cur = cnxn.cursor()
+        cur = monitor.cursor()
         
         for row in result_list:
-            print('row = %r' % (row,))
+            #print('row = %r' % (row,))
             DRSystem    = row[0]
             ProcessCode = row[1]
             Scheme      = row[2]
-            LogDate     = row[3]
+            v_LogDate   = row[3]
+            value_LogDate = re.search('\d{4}\-\d{2}\-\d{2}', str(v_LogDate))
+            LogDate     = '{}'.format(value_LogDate.group())
             StartTime   = row[4]
+            #timestampStr1 = StartTime.strftime("%Y%m%d%H%M")
             Status      = row[5]
             EndTime     = row[6]
             ElapsedTime = row[7]
-            FileName    = row[8]
-            FileSize    = row[9]
-            Message     = row[10]
-            Seq         = 'next value for SeqCONBackup_LBPP'
+            #File_Name   = '{}_{}'.format(Scheme,timestampStr1)
+            #v_File_Name = File_Name
+            #print(r'File_Name   :',File_Name)
+            for FileName in os.listdir('\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\'):
+                #print(r'ada apa ini: ',FileName)
+                if fnmatch.fnmatch(FileName,'APPROVAL_20191011090001.trn'):
+                    #print(r'siapa ini :',FileName)
+                    image_path_input = '\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\'
+                    image_name_input = '{}'.format(FileName)
+                    if os.stat(image_path_input + image_name_input).st_size==0:
+                        FileSize = 'no data found'   
+                    else:
+                        value = os.path.getsize(image_path_input+image_name_input)
+                        File_Size = value
+                        FileSize  = "{:.2f}".format(File_Size)
+                        
+            
+            Message     = row[8]
+            Seq         = '999'
             
             print(r'DRSystem    : {}'.format(DRSystem))
             print(r'ProcessCode : {}'.format(ProcessCode))
@@ -112,15 +131,13 @@ try:
             print(r'FileName    : {}'.format(FileName))
             print(r'FileSize    : {}'.format(FileSize))
             print(r'Message     : {}'.format(Message))
-                        
-            #INSERT into [dbo].[Monitoring_SQL]
-            #([DRSystem] ,[ProcessCode] ,[Seq] ,[Scheme] ,[LogDate],[StartTime],[Status] ,[EndTime] ,[ElapsedTime],[FileName],[FileSize] ,[Message])
-            #.format(DRSystem ,ProcessCode ,Seq ,Scheme ,LogDate, StartTime, Status , EndTime , ElapsedTime, FileName , FileSize, Message )
-            sql_insert = 'INSERT into [dbo].[Monitoring_SQL] VALUES(\'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\', \'{}\' )'.format(DRSystem ,ProcessCode ,Seq ,Scheme ,LogDate, StartTime, Status , EndTime , ElapsedTime, FileName , FileSize, Message )
+                      
+            
+            sql_insert = 'insert into [dbo].[Monitoring_SQL] ([DRSystem] ,[ProcessCode] ,[Seq] ,[Scheme], [LogDate], [StartTime], [Status] , [EndTime], [ElapsedTime] , [FileName] , [FileSize] , [Message]) values (\'{}\',\'{}\',{},\'{}\', convert(datetime,\'{}\'), convert(datetime,\'{}\'), \'{}\', convert(datetime,\'{}\'), convert(time,\'{}\'), \'{}\', {}, \'{}\')'.format(DRSystem,ProcessCode,Seq, Scheme, LogDate, StartTime, Status, EndTime, ElapsedTime, FileName, FileSize, Message)
             cur.execute(sql_insert)  
             monitor.commit()
             print(r'Inserting To Monitoring : Successfuly')
-        
+            
         #monitor.close()
             
 except pyodbc.Error as ex:
@@ -128,4 +145,3 @@ except pyodbc.Error as ex:
 finally:
     if cnxn:
         cnxn.close()
-    

@@ -3,13 +3,13 @@
 Created on Thu Aug 15 14:10:24 2019
 @author: Muhammad Tedi Sopyan
 """
-
 ######confins#####
 #from datetime import datetime,timedelta
 import os
 import fnmatch
 import pyodbc 
 import re
+import glob, time
 try:
     server ='192.168.138.133'
     db ='DRMON'
@@ -71,14 +71,27 @@ try:
         DATEADD(mi,-60,getdate()) ) A"
     
     result_set = cursor.execute(sql)
-    result_list = result_set.fetchall()
-    
-    
+    result_list = result_set.fetchall()   
     if result_set.rowcount == 0:
         print('ga ada data broo')
     else:
-        #insert Into MONITOR
+        root = '\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\' # one specific folder
+        #root = 'D:\\Zz1\\*'          # all the subfolders too
+        date_file_list = []
+        for folder in glob.glob(root):
+            print ("folder =", folder)
+            # select the type of file, for instance *.jpg or all files *.*
+            for file in glob.glob(folder + '/*.*'):
+                stats = os.stat(file)
+                lastmod_date = time.localtime(stats[8])
+                date_file_tuple = lastmod_date, file
+                date_file_list.append(date_file_tuple)
+            
+        #print date_file_list  # test
+        date_file_list.sort()
+        date_file_list.reverse()  # newest mod date now first
         
+        #insert Into MONITOR
         server ='172.17.30.77'
         db ='DRMONITORING'
         tcon ='yes'
@@ -90,49 +103,43 @@ try:
         for row in result_list:
             #print('row = %r' % (row,))
             DRSystem    = row[0]
+            print(r'DRSystem    : {}'.format(DRSystem))
             ProcessCode = row[1]
+            print(r'ProcessCode : {}'.format(ProcessCode))
+            Seq         = '999'
             Scheme      = row[2]
+            print(r'Scheme      : {}'.format(Scheme))
             v_LogDate   = row[3]
             value_LogDate = re.search('\d{4}\-\d{2}\-\d{2}', str(v_LogDate))
             LogDate     = '{}'.format(value_LogDate.group())
-            StartTime   = row[4]
-            #timestampStr1 = StartTime.strftime("%Y%m%d%H%M")
-            Status      = row[5]
-            EndTime     = row[6]
-            ElapsedTime = row[7]
-            #File_Name   = '{}_{}'.format(Scheme,timestampStr1)
-            #v_File_Name = File_Name
-            #print(r'File_Name   :',File_Name)
-            for FileName in os.listdir('\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\'):
-                #print(r'ada apa ini: ',FileName)
-                if fnmatch.fnmatch(FileName,'APPROVAL_20191011090001.trn'):
-                    #print(r'siapa ini :',FileName)
-                    image_path_input = '\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\'
-                    image_name_input = '{}'.format(FileName)
-                    if os.stat(image_path_input + image_name_input).st_size==0:
-                        FileSize = 'no data found'   
-                    else:
-                        value = os.path.getsize(image_path_input+image_name_input)
-                        File_Size = value
-                        FileSize  = "{:.2f}".format(File_Size)
-                        
-            
-            Message     = row[8]
-            Seq         = '999'
-            
-            print(r'DRSystem    : {}'.format(DRSystem))
-            print(r'ProcessCode : {}'.format(ProcessCode))
-            print(r'Scheme      : {}'.format(Scheme))
             print(r'LogDate     : {}'.format(LogDate))
+            StartTime   = row[4]
             print(r'StartTime   : {}'.format(StartTime))
+            Status      = row[5]
             print(r'Status      : {}'.format(Status))
+            EndTime     = row[6]
             print(r'EndTime     : {}'.format(EndTime))
+            ElapsedTime = row[7]
             print(r'ElapsedTime : {}'.format(ElapsedTime))
-            print(r'FileName    : {}'.format(FileName))
-            print(r'FileSize    : {}'.format(FileSize))
+            Message     = row[8]
             print(r'Message     : {}'.format(Message))
+            for file in date_file_list:
+                # extract just the filename
+                folder, FileName = os.path.split(file[1])
+                # convert date tuple to MM/DD/YYYY HH:MM:SS format
+                file_date = time.strftime("%m/%d/%y %H:%M:%S", file[0])
+                FileSize = os.stat(FileName).st_size/1024
+                #print ("%-40s %-18s %.2f" % (file_name, file_date, size))
+                if fnmatch.fnmatch(file_date, '%s'%(StartTime)):
+                    if os.stat(FileName).st_size ==0 :
+                        print ("%-40s %-18s %s" % ("No file exist", "Null", "Null"))
+                    else:
+                        #print('-'*33 +'find' + '-'*33)
+                        #print ("%-40s %-18s %.2f" % (FileName, file_date, FileSize))
+                        print(r'FileName    : {}'.format(FileName))
+                        print(r'FileSize    : {}'.format(FileSize))
+            print('-'*33 +'find' + '-'*33)
                       
-            
             sql_insert = 'insert into [dbo].[Monitoring_SQL] ([DRSystem] ,[ProcessCode] ,[Seq] ,[Scheme], [LogDate], [StartTime], [Status] , [EndTime], [ElapsedTime] , [FileName] , [FileSize] , [Message]) values (\'{}\',\'{}\',{},\'{}\', convert(datetime,\'{}\'), convert(datetime,\'{}\'), \'{}\', convert(datetime,\'{}\'), convert(time,\'{}\'), \'{}\', {}, \'{}\')'.format(DRSystem,ProcessCode,Seq, Scheme, LogDate, StartTime, Status, EndTime, ElapsedTime, FileName, FileSize, Message)
             cur.execute(sql_insert)  
             monitor.commit()

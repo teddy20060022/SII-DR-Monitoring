@@ -28,7 +28,7 @@ try:
                 	, ROW_NUMBER() OVER (PARTITION BY [sJOB].[job_id] ORDER BY [run_date], [run_time] ) AS [Seq] \
                 	, (select [MJob].[Scheme] from [Master_Job_ID] AS [MJob] WHERE [MJob].job_id = [sJOB].[job_id]) [Scheme] \
         , (select \
-        CASE when convert(time,getdate()) > convert(time,'08:00:00') then convert(datetime,convert(date,getdate())) \
+        CASE when convert(time,getdate()) > convert(time,'04:15:00') then convert(datetime,convert(date,getdate())) \
         else \
         convert(datetime,convert(date,getdate()-1)) \
         end) AS [LogDate] \
@@ -68,7 +68,7 @@ try:
         + ' ' + substring(RIGHT('000000' + CONVERT(varchar,run_time),6), 1, 2) \
         + ':' + substring(RIGHT('000000' + CONVERT(varchar,run_time),6), 3, 2) \
         + ':' + substring(RIGHT('000000' + CONVERT(varchar,run_time),6), 5, 2)) > \
-        DATEADD(mi,-60,getdate()) ) A"
+        DATEADD(mi,-60,getdate()) ) A ORDER BY [StartTime]"
     
     result_set = cursor.execute(sql)
     result_list = result_set.fetchall()   
@@ -77,6 +77,7 @@ try:
     else:
         root = '\\\\192.168.138.133\\h$\\Log_Shipping\\APPROVAL\\' # one specific folder
         #root = 'D:\\Zz1\\*'          # all the subfolders too
+        os.chdir(root)
         date_file_list = []
         for folder in glob.glob(root):
             print ("folder =", folder)
@@ -106,7 +107,7 @@ try:
             print(r'DRSystem    : {}'.format(DRSystem))
             ProcessCode = row[1]
             print(r'ProcessCode : {}'.format(ProcessCode))
-            Seq         = '999'
+            Seq         = 'next value for SeqCONBackup_APPROV'
             Scheme      = row[2]
             print(r'Scheme      : {}'.format(Scheme))
             v_LogDate   = row[3]
@@ -115,6 +116,8 @@ try:
             print(r'LogDate     : {}'.format(LogDate))
             StartTime   = row[4]
             print(r'StartTime   : {}'.format(StartTime))
+            timestampStr1 = StartTime.strftime("%Y-%m-%d %H:%M")
+            print (r'timestampStr1', timestampStr1)
             Status      = row[5]
             print(r'Status      : {}'.format(Status))
             EndTime     = row[6]
@@ -127,25 +130,29 @@ try:
                 # extract just the filename
                 folder, FileName = os.path.split(file[1])
                 # convert date tuple to MM/DD/YYYY HH:MM:SS format
-                file_date = time.strftime("%m/%d/%y %H:%M:%S", file[0])
+                file_date = time.strftime("%Y-%m-%d %H:%M", file[0])
                 FileSize = os.stat(FileName).st_size/1024
                 #print ("%-40s %-18s %.2f" % (file_name, file_date, size))
-                if fnmatch.fnmatch(file_date, '%s'%(StartTime)):
+                if fnmatch.fnmatch(file_date, '%s'%(timestampStr1)):
                     if os.stat(FileName).st_size ==0 :
                         print ("%-40s %-18s %s" % ("No file exist", "Null", "Null"))
                     else:
                         #print('-'*33 +'find' + '-'*33)
                         #print ("%-40s %-18s %.2f" % (FileName, file_date, FileSize))
-                        print(r'FileName    : {}'.format(FileName))
-                        print(r'FileSize    : {}'.format(FileSize))
+                        FileName1 = FileName
+                        FileSize1 = FileSize                       
+                        #print(r'FileName    : {}'.format(FileName1))
+                        #print(r'FileSize    : {}'.format(FileSize1))
+            print(r'FileName    : {}'.format(FileName1))
+            print(r'FileSize    : {}'.format(FileSize1))
             print('-'*33 +'find' + '-'*33)
-                      
-            sql_insert = 'insert into [dbo].[Monitoring_SQL] ([DRSystem] ,[ProcessCode] ,[Seq] ,[Scheme], [LogDate], [StartTime], [Status] , [EndTime], [ElapsedTime] , [FileName] , [FileSize] , [Message]) values (\'{}\',\'{}\',{},\'{}\', convert(datetime,\'{}\'), convert(datetime,\'{}\'), \'{}\', convert(datetime,\'{}\'), convert(time,\'{}\'), \'{}\', {}, \'{}\')'.format(DRSystem,ProcessCode,Seq, Scheme, LogDate, StartTime, Status, EndTime, ElapsedTime, FileName, FileSize, Message)
+                 
+            sql_insert = 'insert into [dbo].[Monitoring_SQL] ([DRSystem] ,[ProcessCode] ,[Seq] ,[Scheme], [LogDate], [StartTime], [Status] , [EndTime], [ElapsedTime] , [FileName] , [FileSize] , [Message]) values (\'{}\',\'{}\',{},\'{}\', convert(datetime,\'{}\'), convert(datetime,\'{}\'), \'{}\', convert(datetime,\'{}\'), convert(time,\'{}\'), \'{}\', {}, \'{}\')'.format(DRSystem,ProcessCode,Seq, Scheme, LogDate, StartTime, Status, EndTime, ElapsedTime, FileName1, FileSize1, Message)
             cur.execute(sql_insert)  
             monitor.commit()
             print(r'Inserting To Monitoring : Successfuly')
-            
-        #monitor.close()
+             
+        monitor.close()
             
 except pyodbc.Error as ex:
     print ('error', ex)
